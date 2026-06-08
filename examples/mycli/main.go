@@ -33,10 +33,12 @@ func main() {
 	switch os.Args[1] {
 	case sendMetricsCmd:
 		os.Exit(runSendMetrics(dataDir, disabled))
-	case "demo":
-		code := runDemo(dataDir, disabled)
-		maybeSpawnFlusher(dataDir, disabled)
-		os.Exit(code)
+	case "foo":
+		os.Exit(runInstrumented(dataDir, disabled, doFoo))
+	case "bar":
+		os.Exit(runInstrumented(dataDir, disabled, doBar))
+	case "baz":
+		os.Exit(runInstrumented(dataDir, disabled, doBaz))
 	default:
 		usage()
 		os.Exit(2)
@@ -44,7 +46,7 @@ func main() {
 }
 
 func usage() {
-	fmt.Fprintln(os.Stderr, "usage: mycli demo")
+	fmt.Fprintln(os.Stderr, "usage: mycli {foo|bar|baz}")
 	fmt.Fprintln(os.Stderr, "       mycli send-metrics   (hidden; spawned by the parent process)")
 }
 
@@ -57,7 +59,7 @@ func mustDataDir() string {
 	return filepath.Join(home, "."+appName, "eventsData")
 }
 
-func runDemo(dataDir string, disabled bool) int {
+func runInstrumented(dataDir string, disabled bool, work func() int) int {
 	var emitter eventkit.Emitter = eventkit.NullEmitter{}
 	if !disabled {
 		fe, err := eventkit.NewFileEmitter(dataDir)
@@ -76,21 +78,39 @@ func runDemo(dataDir string, disabled bool) int {
 	)
 	eventkit.SetGlobal(c)
 
-	code := doCloneLikeWork()
+	code := work()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
 	defer cancel()
 	if err := c.Close(ctx); err != nil {
 		fmt.Fprintf(os.Stderr, "collector close: %v\n", err)
 	}
+	maybeSpawnFlusher(disabled)
 	return code
 }
 
-func doCloneLikeWork() int {
-	evt := eventkit.NewEvent("command.demo")
+func doFoo() int {
+	evt := eventkit.NewEvent("command.foo")
 	defer eventkit.Global().CloseEventAndAdd(evt)
 
-	timer := eventkit.NewTimer("demo_duration")
+	timer := eventkit.NewTimer("foo_duration")
+	defer func() {
+		timer.Stop()
+		evt.AddMetric(timer)
+	}()
+
+	evt.SetAttribute("flag", "--quick")
+	time.Sleep(15 * time.Millisecond)
+
+	fmt.Println("foo: done")
+	return 0
+}
+
+func doBar() int {
+	evt := eventkit.NewEvent("command.bar")
+	defer eventkit.Global().CloseEventAndAdd(evt)
+
+	timer := eventkit.NewTimer("bar_duration")
 	defer func() {
 		timer.Stop()
 		evt.AddMetric(timer)
@@ -100,17 +120,45 @@ func doCloneLikeWork() int {
 	evt.SetAttribute("variant", "default")
 
 	bytes := eventkit.NewCounter("bytes_transferred")
-	for i := 0; i < 3; i++ {
-		time.Sleep(20 * time.Millisecond)
-		bytes.Add(1024)
+	rows := eventkit.NewCounter("rows_processed")
+	for i := 0; i < 5; i++ {
+		time.Sleep(10 * time.Millisecond)
+		bytes.Add(2048)
+		rows.Add(100)
 	}
 	evt.AddMetric(bytes)
+	evt.AddMetric(rows)
 
-	fmt.Println("demo: done")
+	fmt.Println("bar: done")
 	return 0
 }
 
-func maybeSpawnFlusher(dataDir string, disabled bool) {
+func doBaz() int {
+	evt := eventkit.NewEvent("command.baz")
+	defer eventkit.Global().CloseEventAndAdd(evt)
+
+	timer := eventkit.NewTimer("baz_duration")
+	defer func() {
+		timer.Stop()
+		evt.AddMetric(timer)
+	}()
+
+	evt.SetAttribute("mode", "validate")
+
+	retries := eventkit.NewCounter("retries")
+	for i := 0; i < 3; i++ {
+		time.Sleep(8 * time.Millisecond)
+		retries.Inc()
+	}
+	evt.AddMetric(retries)
+
+	evt.SetAttribute("status", "error")
+	evt.SetAttribute("error_kind", "validation_failed")
+	fmt.Fprintln(os.Stderr, "baz: validation failed")
+	return 1
+}
+
+func maybeSpawnFlusher(disabled bool) {
 	if disabled || os.Getenv(envSkipSpawn) == "1" {
 		return
 	}

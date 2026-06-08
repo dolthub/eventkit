@@ -4,14 +4,19 @@ A minimal CLI showing the eventkit integration pattern: in-process capture via t
 
 ## Run it
 
+Three demo commands, each emitting an event with a different shape:
+
 ```bash
-# emits one instrumented event; spawns a detached send-metrics subprocess on exit
-go run ./examples/mycli demo
+go run ./examples/mycli foo   # Timer + one attribute
+go run ./examples/mycli bar   # Timer + two Counters + multiple attributes
+go run ./examples/mycli baz   # Timer + Counter; exits non-zero, tags status=error
 
 # inspect what landed on disk
 ls ~/.mycli/eventsData/
 cat ~/.mycli/eventsData/*.evtq | jq .
 ```
+
+Each invocation emits one event and spawns a detached `send-metrics` subprocess on exit.
 
 A `.evtq` file is one batch of events. The filename is the first 22 chars of base64-URL-encoded MD5 of the file contents — used by the flusher to detect corruption.
 
@@ -19,7 +24,7 @@ A `.evtq` file is one batch of events. The filename is the first 22 chars of bas
 
 ```bash
 export MYCLI_POSTHOG_API_KEY=phc_xxx
-go run ./examples/mycli demo
+go run ./examples/mycli foo
 # the spawned send-metrics subprocess will deliver to PostHog and delete the file
 ```
 
@@ -36,7 +41,7 @@ If `MYCLI_POSTHOG_API_KEY` is unset, the `send-metrics` subprocess exits cleanly
 
 The pattern boils down to four code locations:
 
-1. **Startup** (`runDemo`): construct `FileEmitter`, wrap in a `Collector` with `WithDistinctID` / `WithAppName` / `WithAppVersion` / `WithDisabled`, set it as the global.
-2. **Per-command instrumentation** (`doCloneLikeWork`): `NewEvent` + `defer Global().CloseEventAndAdd(evt)`; enrich with `SetAttribute`, `AddMetric(NewCounter(...))`, `AddMetric(NewTimer(...))`.
-3. **Shutdown** (end of `runDemo`): bounded `Collector.Close(ctx)` to flush the final partial batch to disk; spawn detached `send-metrics`.
+1. **Startup** (`runInstrumented`): construct `FileEmitter`, wrap in a `Collector` with `WithDistinctID` / `WithAppName` / `WithAppVersion` / `WithDisabled`, set it as the global.
+2. **Per-command instrumentation** (`doFoo` / `doBar` / `doBaz`): `NewEvent` + `defer Global().CloseEventAndAdd(evt)`; enrich with `SetAttribute`, `AddMetric(NewCounter(...))`, `AddMetric(NewTimer(...))`.
+3. **Shutdown** (end of `runInstrumented`): bounded `Collector.Close(ctx)` to flush the final partial batch to disk; spawn detached `send-metrics`.
 4. **Hidden subcommand** (`runSendMetrics`): build a `PostHog.Emitter`, wrap in a `FileFlusher`, call `Flush(ctx)`. The flusher takes the cross-process lock, ships every queued batch via the SDK's batching, and deletes only the files whose events all delivered successfully.
