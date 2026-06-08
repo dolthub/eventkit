@@ -1,1 +1,1 @@
-# cli_events
+# event_collector
