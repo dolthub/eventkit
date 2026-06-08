@@ -13,8 +13,9 @@ import (
 )
 
 const (
-	DefaultInterval  = 250 * time.Millisecond
-	DefaultBatchSize = 250
+	DefaultInterval         = 250 * time.Millisecond
+	DefaultBatchSize        = 250
+	DefaultShutdownDeadline = 10 * time.Second
 )
 
 type Config struct {
@@ -42,6 +43,9 @@ func New(cfg Config) (*Emitter, error) {
 	}
 	if cfg.BatchSize == 0 {
 		cfg.BatchSize = DefaultBatchSize
+	}
+	if cfg.ShutdownDeadline == 0 {
+		cfg.ShutdownDeadline = DefaultShutdownDeadline
 	}
 
 	e := &Emitter{failed: make(map[string]error)}
@@ -75,8 +79,17 @@ func (e *Emitter) Send(_ context.Context, req *eventkit.LogEventsRequest) error 
 	return nil
 }
 
-func (e *Emitter) Drain(_ context.Context) (map[string]error, error) {
-	closeErr := e.client.Close()
+func (e *Emitter) Drain(ctx context.Context) (map[string]error, error) {
+	done := make(chan error, 1)
+	go func() { done <- e.client.Close() }()
+
+	var closeErr error
+	select {
+	case closeErr = <-done:
+	case <-ctx.Done():
+		closeErr = ctx.Err()
+	}
+
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	out := make(map[string]error, len(e.failed))
