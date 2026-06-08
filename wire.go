@@ -28,5 +28,4 @@ type Metric struct {
 	Key      string         `json:"key"`
 	Count    *int64         `json:"count,omitempty"`
 	Duration *time.Duration `json:"duration_ns,omitempty"`
-	Gauge    *float64       `json:"gauge,omitempty"`
 }

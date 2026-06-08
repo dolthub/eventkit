@@ -11,9 +11,8 @@ import (
 const DefaultLockFilename = "eventkit.lock"
 
 type FileEmitter struct {
-	dir          string
-	ext          string
-	lockFilename string
+	dir string
+	ext string
 }
 
 type FileEmitterOption func(*FileEmitter)
@@ -22,18 +21,13 @@ func WithFileExtension(ext string) FileEmitterOption {
 	return func(f *FileEmitter) { f.ext = ext }
 }
 
-func WithLockFilename(name string) FileEmitterOption {
-	return func(f *FileEmitter) { f.lockFilename = name }
-}
-
 func NewFileEmitter(dir string, opts ...FileEmitterOption) (*FileEmitter, error) {
 	if dir == "" {
 		return nil, errors.New("eventkit: FileEmitter requires a non-empty dir")
 	}
 	fe := &FileEmitter{
-		dir:          dir,
-		ext:          DefaultFileExt,
-		lockFilename: DefaultLockFilename,
+		dir: dir,
+		ext: DefaultFileExt,
 	}
 	for _, o := range opts {
 		o(fe)
@@ -43,10 +37,6 @@ func NewFileEmitter(dir string, opts ...FileEmitterOption) (*FileEmitter, error)
 	}
 	return fe, nil
 }
-
-func (f *FileEmitter) Dir() string          { return f.dir }
-func (f *FileEmitter) Extension() string    { return f.ext }
-func (f *FileEmitter) LockFilename() string { return f.lockFilename }
 
 func (f *FileEmitter) Send(_ context.Context, req *LogEventsRequest) error {
 	if req == nil || len(req.Events) == 0 {

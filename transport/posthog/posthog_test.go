@@ -14,7 +14,6 @@ import (
 func TestBuildCaptureMapping(t *testing.T) {
 	count := int64(42)
 	dur := 150 * time.Millisecond
-	gauge := 3.14
 	req := &eventkit.LogEventsRequest{
 		DistinctID: "machine-1",
 		AppName:    "mycli",
@@ -32,7 +31,6 @@ func TestBuildCaptureMapping(t *testing.T) {
 		Metrics: []eventkit.Metric{
 			{Key: "rows", Count: &count},
 			{Key: "phase1", Duration: &dur},
-			{Key: "load", Gauge: &gauge},
 		},
 	}
 
@@ -63,9 +61,6 @@ func TestBuildCaptureMapping(t *testing.T) {
 	}
 	if props["phase1_ms"] != 150.0 {
 		t.Fatalf("phase1_ms = %v", props["phase1_ms"])
-	}
-	if props["load"] != 3.14 {
-		t.Fatalf("load = %v", props["load"])
 	}
 }
 

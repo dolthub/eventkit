@@ -18,7 +18,7 @@ func TestCounterSerialize(t *testing.T) {
 	if m.Count == nil || *m.Count != 3 {
 		t.Fatalf("count = %+v", m.Count)
 	}
-	if m.Duration != nil || m.Gauge != nil {
+	if m.Duration != nil {
 		t.Fatal("only Count should be set")
 	}
 }

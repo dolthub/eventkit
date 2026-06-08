@@ -129,8 +129,6 @@ func buildCapture(req *eventkit.LogEventsRequest, evt eventkit.EventRecord) post
 			props.Set(m.Key, *m.Count)
 		case m.Duration != nil:
 			props.Set(fmt.Sprintf("%s_ms", m.Key), float64(m.Duration.Nanoseconds())/1e6)
-		case m.Gauge != nil:
-			props.Set(m.Key, *m.Gauge)
 		}
 	}
 	return posthogsdk.Capture{

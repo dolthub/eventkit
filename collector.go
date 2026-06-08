@@ -54,20 +54,15 @@ func WithBackoff(initial, max time.Duration) CollectorOption {
 	}
 }
 
-func WithNowFunc(f func() time.Time) CollectorOption {
-	return func(c *collectorConfig) { NowFunc = f }
-}
-
 func WithDisabled(f func() bool) CollectorOption {
 	return func(c *collectorConfig) { c.disabled = f }
 }
 
 type Collector struct {
-	cfg    collectorConfig
-	events []EventRecord
-	wg     sync.WaitGroup
-	evtCh  chan EventRecord
-	st     *sendingThread
+	cfg   collectorConfig
+	wg    sync.WaitGroup
+	evtCh chan EventRecord
+	st    *sendingThread
 }
 
 func NewCollector(emitter Emitter, opts ...CollectorOption) *Collector {
@@ -95,16 +90,16 @@ func NewCollector(emitter Emitter, opts ...CollectorOption) *Collector {
 
 func (c *Collector) drain() {
 	defer c.wg.Done()
+	var events []EventRecord
 	for evt := range c.evtCh {
-		c.events = append(c.events, evt)
-		if len(c.events) >= c.cfg.maxBatch {
-			c.st.batchCh <- c.events
-			c.events = nil
+		events = append(events, evt)
+		if len(events) >= c.cfg.maxBatch {
+			c.st.batchCh <- events
+			events = nil
 		}
 	}
-	if len(c.events) > 0 {
-		c.st.batchCh <- c.events
-		c.events = nil
+	if len(events) > 0 {
+		c.st.batchCh <- events
 	}
 }
 
@@ -195,7 +190,7 @@ func (s *sendingThread) run() {
 		select {
 		case batch, ok := <-s.batchCh:
 			if !ok {
-				if s.emitter != nil && len(s.unsent) > 0 && !s.cfg.disabled() {
+				if len(s.unsent) > 0 && !s.cfg.disabled() {
 					if err := s.send(s.unsent); err == nil {
 						s.unsent = nil
 					}
@@ -206,15 +201,13 @@ func (s *sendingThread) run() {
 			if len(s.unsent) > s.cfg.maxBatch {
 				s.unsent = s.unsent[len(s.unsent)-s.cfg.maxBatch:]
 			}
-			if s.emitter != nil {
-				if timer != nil && !timer.Stop() {
-					select {
-					case <-timer.C:
-					default:
-					}
+			if timer != nil && !timer.Stop() {
+				select {
+				case <-timer.C:
+				default:
 				}
-				timer = time.NewTimer(0)
 			}
+			timer = time.NewTimer(0)
 		case <-timerCh:
 			if s.cfg.disabled() {
 				s.unsent = nil

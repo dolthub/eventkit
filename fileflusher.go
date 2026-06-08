@@ -83,14 +83,13 @@ func (f *FileFlusher) flushSync(ctx context.Context, entries []os.DirEntry) erro
 			continue
 		}
 		path := filepath.Join(f.dir, entry.Name())
-		data, req, ok, err := f.readBatch(path)
+		req, ok, err := f.readBatch(path)
 		if err != nil {
 			return err
 		}
 		if !ok {
 			continue
 		}
-		_ = data
 		if err := f.target.Send(ctx, req); err != nil {
 			return err
 		}
@@ -113,7 +112,7 @@ func (f *FileFlusher) flushDrainable(ctx context.Context, entries []os.DirEntry,
 			continue
 		}
 		path := filepath.Join(f.dir, entry.Name())
-		_, req, ok, err := f.readBatch(path)
+		req, ok, err := f.readBatch(path)
 		if err != nil {
 			return err
 		}
@@ -149,17 +148,17 @@ func (f *FileFlusher) flushDrainable(ctx context.Context, entries []os.DirEntry,
 	return drainErr
 }
 
-func (f *FileFlusher) readBatch(path string) ([]byte, *LogEventsRequest, bool, error) {
+func (f *FileFlusher) readBatch(path string) (*LogEventsRequest, bool, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
-		return nil, nil, false, err
+		return nil, false, err
 	}
 	if !CheckFilenameMD5(data, path, f.ext) {
-		return nil, nil, false, nil
+		return nil, false, nil
 	}
 	var req LogEventsRequest
 	if err := json.Unmarshal(data, &req); err != nil {
-		return nil, nil, false, nil
+		return nil, false, nil
 	}
-	return data, &req, true, nil
+	return &req, true, nil
 }
