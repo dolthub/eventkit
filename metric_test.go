@@ -1,6 +1,7 @@
 package eventkit
 
 import (
+	"sync"
 	"testing"
 	"time"
 )
@@ -35,6 +36,32 @@ func TestTimerSerialize(t *testing.T) {
 	m := tm.Serialize()
 	if m.Key != "op" || m.Duration == nil || *m.Duration != 150*time.Millisecond {
 		t.Fatalf("got %+v", m)
+	}
+}
+
+func TestCounterAtomicity(t *testing.T) {
+	c := NewCounter("hits")
+	const goroutines = 100
+	const perGoroutine = 1000
+	var wg sync.WaitGroup
+	for g := 0; g < goroutines; g++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for i := 0; i < perGoroutine; i++ {
+				c.Inc()
+				c.Inc()
+				c.Dec()
+				c.Add(2)
+				c.Add(-1)
+			}
+		}()
+	}
+	wg.Wait()
+	m := c.Serialize()
+	want := int64(goroutines * perGoroutine * 2)
+	if m.Count == nil || *m.Count != want {
+		t.Fatalf("count = %v, want %d", m.Count, want)
 	}
 }
 

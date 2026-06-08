@@ -3,6 +3,7 @@ package eventkit
 import (
 	"context"
 	"errors"
+	"strconv"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -170,6 +171,69 @@ func (s *slowEmitter) Send(ctx context.Context, _ *LogEventsRequest) error {
 		return nil
 	case <-ctx.Done():
 		return ctx.Err()
+	}
+}
+
+type recordingFailEmitter struct {
+	mu        sync.Mutex
+	attempted []*LogEventsRequest
+}
+
+func (e *recordingFailEmitter) Send(_ context.Context, req *LogEventsRequest) error {
+	e.mu.Lock()
+	cp := *req
+	cp.Events = append([]EventRecord(nil), req.Events...)
+	e.attempted = append(e.attempted, &cp)
+	e.mu.Unlock()
+	return errors.New("always fails")
+}
+
+func TestCollectorTruncatesOldestUnderBackpressure(t *testing.T) {
+	em := &recordingFailEmitter{}
+	const maxBatch = 4
+	const total = 50
+
+	c := NewCollector(em,
+		WithMaxBatch(maxBatch),
+		WithBackoff(time.Microsecond, time.Microsecond),
+		WithDistinctID("d"), WithAppName("a"),
+	)
+	for i := 1; i <= total; i++ {
+		evt := NewEvent("e")
+		evt.SetAttribute("seq", strconv.Itoa(i))
+		c.CloseEventAndAdd(evt)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	if err := c.Close(ctx); err != nil {
+		t.Fatal(err)
+	}
+
+	em.mu.Lock()
+	defer em.mu.Unlock()
+	if len(em.attempted) == 0 {
+		t.Fatal("no send attempts recorded")
+	}
+
+	for i, r := range em.attempted {
+		if len(r.Events) > maxBatch {
+			t.Fatalf("attempt %d had %d events, want <= %d", i, len(r.Events), maxBatch)
+		}
+	}
+
+	last := em.attempted[len(em.attempted)-1]
+	if len(last.Events) == 0 {
+		t.Fatal("last attempt had no events")
+	}
+	lastEvt := last.Events[len(last.Events)-1]
+	var lastSeq string
+	for _, a := range lastEvt.Attributes {
+		if a.Key == "seq" {
+			lastSeq = a.Value
+		}
+	}
+	if lastSeq != strconv.Itoa(total) {
+		t.Fatalf("final unsent buffer does not contain newest event: tail seq = %q, want %d", lastSeq, total)
 	}
 }
 
