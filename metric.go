@@ -1,6 +1,7 @@
 package eventkit
 
 import (
+	"sync"
 	"sync/atomic"
 	"time"
 )
@@ -36,6 +37,7 @@ func (c *Counter) Serialize() Metric {
 }
 
 type Timer struct {
+	mu    sync.Mutex
 	key   string
 	start time.Time
 	stop  time.Time
@@ -46,11 +48,15 @@ func NewTimer(key string) *Timer {
 }
 
 func (t *Timer) Stop() *Timer {
+	t.mu.Lock()
+	defer t.mu.Unlock()
 	t.stop = NowFunc()
 	return t
 }
 
 func (t *Timer) Serialize() Metric {
+	t.mu.Lock()
+	defer t.mu.Unlock()
 	if t.stop.IsZero() {
 		panic("eventkit: Timer must be stopped before serialization")
 	}

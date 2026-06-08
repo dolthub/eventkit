@@ -129,6 +129,9 @@ func (f *FileFlusher) flushDrainable(ctx context.Context, entries []os.DirEntry,
 	}
 
 	failed, drainErr := drainable.Drain(ctx)
+	if drainErr != nil {
+		return drainErr
+	}
 
 	failedPaths := map[string]struct{}{}
 	for eventID := range failed {

@@ -59,10 +59,16 @@ func WithDisabled(f func() bool) CollectorOption {
 }
 
 type Collector struct {
-	cfg   collectorConfig
-	wg    sync.WaitGroup
-	evtCh chan EventRecord
-	st    *sendingThread
+	cfg       collectorConfig
+	wg        sync.WaitGroup
+	evtCh     chan EventRecord
+	st        *sendingThread
+	mu        sync.Mutex
+	closed    bool
+	closing   chan struct{}
+	done      chan struct{}
+	closeOnce sync.Once
+	producers sync.WaitGroup
 }
 
 func NewCollector(emitter Emitter, opts ...CollectorOption) *Collector {
@@ -78,9 +84,11 @@ func NewCollector(emitter Emitter, opts ...CollectorOption) *Collector {
 	}
 
 	c := &Collector{
-		cfg:   cfg,
-		evtCh: make(chan EventRecord, defaultChanBuffer),
-		st:    newSendingThread(cfg, emitter),
+		cfg:     cfg,
+		evtCh:   make(chan EventRecord, defaultChanBuffer),
+		st:      newSendingThread(cfg, emitter),
+		closing: make(chan struct{}),
+		done:    make(chan struct{}),
 	}
 	c.st.start()
 	c.wg.Add(1)
@@ -108,21 +116,44 @@ func (c *Collector) CloseEventAndAdd(evt *Event) {
 		_ = evt.close()
 		return
 	}
-	c.evtCh <- evt.close()
+	record := evt.close()
+
+	c.mu.Lock()
+	if c.closed {
+		c.mu.Unlock()
+		return
+	}
+	c.producers.Add(1)
+	c.mu.Unlock()
+
+	defer c.producers.Done()
+	select {
+	case c.evtCh <- record:
+	case <-c.closing:
+	}
 }
 
 func (c *Collector) Close(ctx context.Context) error {
-	close(c.evtCh)
-	done := make(chan struct{})
-	go func() {
-		c.wg.Wait()
-		c.st.stop()
-		close(done)
-	}()
+	c.closeOnce.Do(func() {
+		c.mu.Lock()
+		c.closed = true
+		close(c.closing)
+		c.mu.Unlock()
+
+		go func() {
+			c.producers.Wait()
+			close(c.evtCh)
+			c.wg.Wait()
+			c.st.stop()
+			close(c.done)
+		}()
+	})
+
 	select {
-	case <-done:
+	case <-c.done:
 		return nil
 	case <-ctx.Done():
+		c.st.cancel()
 		return ctx.Err()
 	}
 }

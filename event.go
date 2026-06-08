@@ -32,12 +32,18 @@ func NewEvent(name string) *Event {
 func (e *Event) SetAttribute(key, value string) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
+	if e.closed {
+		panic("eventkit: Event mutated after close")
+	}
 	e.attributes[key] = value
 }
 
 func (e *Event) AddMetric(m EventMetric) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
+	if e.closed {
+		panic("eventkit: Event mutated after close")
+	}
 	e.metrics = append(e.metrics, m.Serialize())
 }
 
@@ -61,6 +67,6 @@ func (e *Event) close() EventRecord {
 		StartTime:  e.startTime,
 		EndTime:    e.endTime,
 		Attributes: attrs,
-		Metrics:    e.metrics,
+		Metrics:    append([]Metric(nil), e.metrics...),
 	}
 }

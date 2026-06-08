@@ -74,3 +74,22 @@ func TestTimerSerializeWithoutStopPanics(t *testing.T) {
 	}()
 	tm.Serialize()
 }
+
+func TestTimerConcurrentStopAndSerialize(t *testing.T) {
+	tm := NewTimer("op")
+	tm.Stop()
+
+	var wg sync.WaitGroup
+	for i := 0; i < 100; i++ {
+		wg.Add(2)
+		go func() {
+			defer wg.Done()
+			tm.Stop()
+		}()
+		go func() {
+			defer wg.Done()
+			_ = tm.Serialize()
+		}()
+	}
+	wg.Wait()
+}

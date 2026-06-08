@@ -161,6 +161,39 @@ func TestCollectorCloseRespectsContext(t *testing.T) {
 	if !errors.Is(err, context.DeadlineExceeded) {
 		t.Fatalf("err = %v, want DeadlineExceeded", err)
 	}
+	ctx2, cancel2 := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel2()
+	if err := c.Close(ctx2); err != nil {
+		t.Fatalf("second close after cancellation: %v", err)
+	}
+}
+
+func TestCollectorCloseIsIdempotent(t *testing.T) {
+	em := &memEmitter{}
+	c := NewCollector(em)
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	if err := c.Close(ctx); err != nil {
+		t.Fatalf("first close: %v", err)
+	}
+	if err := c.Close(ctx); err != nil {
+		t.Fatalf("second close: %v", err)
+	}
+}
+
+func TestCollectorAddAfterCloseDropsWithoutPanic(t *testing.T) {
+	em := &memEmitter{}
+	c := NewCollector(em)
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	if err := c.Close(ctx); err != nil {
+		t.Fatal(err)
+	}
+
+	c.CloseEventAndAdd(newEvent(t, "late"))
+	if len(em.batches()) != 0 {
+		t.Fatalf("late event was sent after close")
+	}
 }
 
 type slowEmitter struct{ delay time.Duration }

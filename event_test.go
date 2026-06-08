@@ -56,6 +56,29 @@ func TestEventDoubleClosePanics(t *testing.T) {
 	evt.close()
 }
 
+func TestEventMutationAfterClosePanics(t *testing.T) {
+	evt := NewEvent("x")
+	evt.close()
+	defer func() {
+		if recover() == nil {
+			t.Fatal("expected panic")
+		}
+	}()
+	evt.SetAttribute("late", "value")
+}
+
+func TestEventCloseCopiesMetrics(t *testing.T) {
+	evt := NewEvent("x")
+	evt.metrics = []Metric{{Key: "one"}}
+	rec := evt.close()
+
+	evt.metrics[0].Key = "changed"
+
+	if len(rec.Metrics) != 1 || rec.Metrics[0].Key != "one" {
+		t.Fatalf("record metrics changed after close: %+v", rec.Metrics)
+	}
+}
+
 func TestContextRoundTrip(t *testing.T) {
 	evt := NewEvent("x")
 	ctx := NewContextForEvent(context.Background(), evt)
