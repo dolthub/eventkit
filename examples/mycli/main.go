@@ -89,11 +89,20 @@ func runInstrumented(dataDir string, disabled bool, work func() int) int {
 	return code
 }
 
+func newCommandEvent(command string) *eventkit.Event {
+	if command == "" {
+		panic("newCommandEvent: command is required")
+	}
+	evt := eventkit.NewEvent("cli_command")
+	evt.SetAttribute("command", command)
+	return evt
+}
+
 func doFoo() int {
-	evt := eventkit.NewEvent("command.foo")
+	evt := newCommandEvent("foo")
 	defer eventkit.Global().CloseEventAndAdd(evt)
 
-	timer := eventkit.NewTimer("foo_duration")
+	timer := eventkit.NewTimer("duration")
 	defer func() {
 		timer.Stop()
 		evt.AddMetric(timer)
@@ -107,10 +116,10 @@ func doFoo() int {
 }
 
 func doBar() int {
-	evt := eventkit.NewEvent("command.bar")
+	evt := newCommandEvent("bar")
 	defer eventkit.Global().CloseEventAndAdd(evt)
 
-	timer := eventkit.NewTimer("bar_duration")
+	timer := eventkit.NewTimer("duration")
 	defer func() {
 		timer.Stop()
 		evt.AddMetric(timer)
@@ -134,10 +143,10 @@ func doBar() int {
 }
 
 func doBaz() int {
-	evt := eventkit.NewEvent("command.baz")
+	evt := newCommandEvent("baz")
 	defer eventkit.Global().CloseEventAndAdd(evt)
 
-	timer := eventkit.NewTimer("baz_duration")
+	timer := eventkit.NewTimer("duration")
 	defer func() {
 		timer.Stop()
 		evt.AddMetric(timer)
