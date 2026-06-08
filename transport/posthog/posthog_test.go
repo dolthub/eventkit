@@ -110,3 +110,29 @@ func TestDrainReturnsAndClearsFailures(t *testing.T) {
 type stubClient struct{ posthogsdk.Client }
 
 func (stubClient) Close() error { return nil }
+
+type hangingClient struct{ posthogsdk.Client }
+
+func (hangingClient) Close() error {
+	select {}
+}
+
+func TestDrainHonorsContextWhenCloseHangs(t *testing.T) {
+	e := &Emitter{failed: map[string]error{"a": errors.New("noise")}, client: hangingClient{}}
+	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	defer cancel()
+
+	start := time.Now()
+	failed, err := e.Drain(ctx)
+	elapsed := time.Since(start)
+
+	if !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("err = %v, want DeadlineExceeded", err)
+	}
+	if elapsed > 500*time.Millisecond {
+		t.Fatalf("Drain took %v; expected ctx-bounded", elapsed)
+	}
+	if len(failed) != 1 {
+		t.Fatalf("failed = %v, want one entry preserved", failed)
+	}
+}
