@@ -44,4 +44,4 @@ The pattern boils down to four code locations:
 1. **Startup** (`runInstrumented`): construct `FileEmitter`, wrap in a `Collector` with `WithDistinctID` / `WithAppName` / `WithAppVersion` / `WithDisabled`, set it as the global.
 2. **Per-command instrumentation** (`doFoo` / `doBar` / `doBaz`): `NewEvent` + `defer Global().CloseEventAndAdd(evt)`; enrich with `SetAttribute`, `AddMetric(NewCounter(...))`, `AddMetric(NewTimer(...))`.
 3. **Shutdown** (end of `runInstrumented`): bounded `Collector.Close(ctx)` to flush the final partial batch to disk; spawn detached `send-metrics`.
-4. **Hidden subcommand** (`runSendMetrics`): build a `PostHog.Emitter`, wrap in a `FileFlusher`, call `Flush(ctx)`. The flusher takes the cross-process lock, ships every queued batch via the SDK's batching, and deletes only the files whose events all delivered successfully.
+4. **Hidden subcommand** (`runSendMetrics`): build a `posthog.Emitter`, wrap in a `FileFlusher`, call `Flush(ctx)`. The flusher takes the cross-process lock, ships every queued batch via the SDK's batching, and deletes only the files whose events all delivered successfully.
