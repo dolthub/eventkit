@@ -45,7 +45,7 @@ func TestEventLifecycle(t *testing.T) {
 	}
 }
 
-func TestEventDoubleCloseePanics(t *testing.T) {
+func TestEventDoubleClosePanics(t *testing.T) {
 	evt := NewEvent("x")
 	evt.close()
 	defer func() {

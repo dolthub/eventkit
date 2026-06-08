@@ -3,10 +3,10 @@ package eventkit
 import "time"
 
 type LogEventsRequest struct {
-	DistinctID string  `json:"distinct_id"`
-	AppName    string  `json:"app_name"`
-	AppVersion string  `json:"app_version"`
-	Platform   string  `json:"platform"`
+	DistinctID string        `json:"distinct_id"`
+	AppName    string        `json:"app_name"`
+	AppVersion string        `json:"app_version"`
+	Platform   string        `json:"platform"`
 	Events     []EventRecord `json:"events"`
 }
 
