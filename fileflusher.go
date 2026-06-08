@@ -2,7 +2,6 @@ package eventkit
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"os"
 	"path/filepath"
@@ -19,6 +18,7 @@ type FileFlusher struct {
 	ext          string
 	lockFilename string
 	target       Emitter
+	codec        Codec
 }
 
 type FileFlusherOption func(*FileFlusher)
@@ -31,15 +31,23 @@ func WithFlusherLockFilename(name string) FileFlusherOption {
 	return func(f *FileFlusher) { f.lockFilename = name }
 }
 
+func WithFlusherFileCodec(c Codec) FileFlusherOption {
+	return func(f *FileFlusher) { f.codec = c }
+}
+
 func NewFileFlusher(dir string, target Emitter, opts ...FileFlusherOption) *FileFlusher {
 	f := &FileFlusher{
 		dir:          dir,
 		ext:          DefaultFileExt,
 		lockFilename: DefaultLockFilename,
 		target:       target,
+		codec:        DefaultCodec,
 	}
 	for _, o := range opts {
 		o(f)
+	}
+	if f.codec == nil {
+		f.codec = DefaultCodec
 	}
 	return f
 }
@@ -160,7 +168,7 @@ func (f *FileFlusher) readBatch(path string) (*LogEventsRequest, bool, error) {
 		return nil, false, nil
 	}
 	var req LogEventsRequest
-	if err := json.Unmarshal(data, &req); err != nil {
+	if err := f.codec.Unmarshal(data, &req); err != nil {
 		return nil, false, nil
 	}
 	return &req, true, nil
