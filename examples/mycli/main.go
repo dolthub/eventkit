@@ -9,16 +9,18 @@ import (
 	"time"
 
 	"github.com/dolthub/eventkit"
-	posthogtx "github.com/dolthub/eventkit/transport/posthog"
+	ga4tx "github.com/dolthub/eventkit/transport/ga4"
 )
 
 const (
-	appName        = "mycli"
-	appVersion     = "0.1.0"
-	sendMetricsCmd = "send-metrics"
-	envAPIKey      = "MYCLI_POSTHOG_API_KEY"
-	envDisable     = "MYCLI_DISABLE_METRICS"
-	envSkipSpawn   = "MYCLI_DISABLE_EVENT_FLUSH"
+	appName             = "mycli"
+	appVersion          = "0.1.0"
+	sendMetricsCmd      = "send-metrics"
+	envGA4MeasurementID = "MYCLI_GA4_MEASUREMENT_ID"
+	envGA4APISecret     = "MYCLI_GA4_API_SECRET"
+	envGA4Validate      = "MYCLI_GA4_VALIDATE"
+	envDisable          = "MYCLI_DISABLE_METRICS"
+	envSkipSpawn        = "MYCLI_DISABLE_EVENT_FLUSH"
 )
 
 func main() {
@@ -188,18 +190,23 @@ func runSendMetrics(dataDir string, disabled bool) int {
 		return 0
 	}
 
-	apiKey := os.Getenv(envAPIKey)
-	if apiKey == "" {
+	mid := os.Getenv(envGA4MeasurementID)
+	secret := os.Getenv(envGA4APISecret)
+	if mid == "" || secret == "" {
 		return 0
 	}
 
-	ph, err := posthogtx.New(posthogtx.Config{APIKey: apiKey})
+	ga, err := ga4tx.New(ga4tx.Config{
+		MeasurementID: mid,
+		APISecret:     secret,
+		Validate:      os.Getenv(envGA4Validate) == "1",
+	})
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "posthog: %v\n", err)
+		fmt.Fprintf(os.Stderr, "ga4: %v\n", err)
 		return 1
 	}
 
-	flusher := eventkit.NewFileFlusher(dataDir, ph)
+	flusher := eventkit.NewFileFlusher(dataDir, ga)
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 	if err := flusher.Flush(ctx); err != nil {

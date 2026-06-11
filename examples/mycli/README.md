@@ -1,6 +1,6 @@
 # mycli — worked eventkit example
 
-A minimal CLI showing the eventkit integration pattern: in-process capture via the `Collector`, durable disk queue via `FileEmitter`, and a detached `send-metrics` subprocess that ships queued events to PostHog via `transport/posthog`.
+A minimal CLI showing the eventkit integration pattern: in-process capture via the `Collector`, durable disk queue via `FileEmitter`, and a detached `send-metrics` subprocess that ships queued events to Google Analytics 4 via `transport/ga4`.
 
 ## Run it
 
@@ -20,15 +20,18 @@ Each invocation emits one event and spawns a detached `send-metrics` subprocess 
 
 A `.evtq` file is one batch of events. The filename is the first 22 chars of base64-URL-encoded MD5 of the file contents — used by the flusher to detect corruption.
 
-## Ship events to PostHog
+## Ship events to GA4
 
 ```bash
-export MYCLI_POSTHOG_API_KEY=phc_xxx
+export MYCLI_GA4_MEASUREMENT_ID=G-XXXXXXXXXX
+export MYCLI_GA4_API_SECRET=xxxxxxxxxxxxxxxxxxxxxx
+# optional: route to /debug/mp/collect for validation feedback
+export MYCLI_GA4_VALIDATE=1
 go run ./examples/mycli foo
-# the spawned send-metrics subprocess will deliver to PostHog and delete the file
+# the spawned send-metrics subprocess will deliver to GA4 and delete the file
 ```
 
-If `MYCLI_POSTHOG_API_KEY` is unset, the `send-metrics` subprocess exits cleanly without touching the queue — useful for local development.
+If either `MYCLI_GA4_MEASUREMENT_ID` or `MYCLI_GA4_API_SECRET` is unset, the `send-metrics` subprocess exits cleanly without touching the queue — useful for local development. Events should appear in GA4's **DebugView** within seconds and in standard reports within 24–48 hours.
 
 ## Opt-out
 
@@ -44,4 +47,4 @@ The pattern boils down to four code locations:
 1. **Startup** (`runInstrumented`): construct `FileEmitter`, wrap in a `Collector` with `WithDistinctID` / `WithAppName` / `WithAppVersion` / `WithDisabled`, set it as the global.
 2. **Per-command instrumentation** (`doFoo` / `doBar` / `doBaz`): `NewEvent` + `defer Global().CloseEventAndAdd(evt)`; enrich with `SetAttribute`, `AddMetric(NewCounter(...))`, `AddMetric(NewTimer(...))`.
 3. **Shutdown** (end of `runInstrumented`): bounded `Collector.Close(ctx)` to flush the final partial batch to disk; spawn detached `send-metrics`.
-4. **Hidden subcommand** (`runSendMetrics`): build a `posthog.Emitter`, wrap in a `FileFlusher`, call `Flush(ctx)`. The flusher takes the cross-process lock, ships every queued batch via the SDK's batching, and deletes only the files whose events all delivered successfully.
+4. **Hidden subcommand** (`runSendMetrics`): build a `ga4.Emitter`, wrap in a `FileFlusher`, call `Flush(ctx)`. The flusher takes the cross-process lock, ships every queued batch (chunked at GA4's 25-events-per-request cap), and deletes only the files whose events all delivered successfully.
