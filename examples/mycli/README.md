@@ -22,14 +22,21 @@ A `.evtq` file is one batch of events. The filename is the first 22 chars of bas
 
 ## Ship events to GA4
 
+`send-metrics` is gated on `MYCLI_GA4_ENDPOINT`. Point it at a proxy that injects the GA4 credentials, or at GA4 directly with the credentials set locally:
+
 ```bash
+# via a proxy that injects measurement_id + api_secret
+export MYCLI_GA4_ENDPOINT=https://your-proxy.example.com/collect
+go run ./examples/mycli foo
+
+# or talk to GA4 directly
+export MYCLI_GA4_ENDPOINT=https://www.google-analytics.com/mp/collect
 export MYCLI_GA4_MEASUREMENT_ID=G-XXXXXXXXXX
 export MYCLI_GA4_API_SECRET=xxxxxxxxxxxxxxxxxxxxxx
 go run ./examples/mycli foo
-# the spawned send-metrics subprocess will deliver to GA4 and delete the file
 ```
 
-If either `MYCLI_GA4_MEASUREMENT_ID` or `MYCLI_GA4_API_SECRET` is unset, the `send-metrics` subprocess exits cleanly without touching the queue — useful for local development. Events should appear in GA4's **DebugView** within seconds and in standard reports within 24–48 hours.
+If `MYCLI_GA4_ENDPOINT` is unset, the `send-metrics` subprocess exits cleanly without touching the queue — useful for local development. `MYCLI_GA4_MEASUREMENT_ID` and `MYCLI_GA4_API_SECRET` are optional; either is appended to the request query string when set, and otherwise expected to be injected by the proxy. Events should appear in GA4's **DebugView** within seconds and in standard reports within 24–48 hours.
 
 ## Opt-out
 
