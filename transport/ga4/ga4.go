@@ -45,9 +45,6 @@ func New(cfg Config) (*Emitter, error) {
 	if cfg.MeasurementID == "" {
 		return nil, errors.New("ga4: MeasurementID is required")
 	}
-	if cfg.APISecret == "" {
-		return nil, errors.New("ga4: APISecret is required")
-	}
 	endpoint := cfg.Endpoint
 	if endpoint == "" {
 		if cfg.Validate {
@@ -93,7 +90,10 @@ func (e *Emitter) post(ctx context.Context, payload payload) error {
 	if err != nil {
 		return err
 	}
-	url := fmt.Sprintf("%s?measurement_id=%s&api_secret=%s", e.endpoint, e.mid, e.secret)
+	url := fmt.Sprintf("%s?measurement_id=%s", e.endpoint, e.mid)
+	if e.secret != "" {
+		url = fmt.Sprintf("%s&api_secret=%s", url, e.secret)
+	}
 	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
 	if err != nil {
 		return err
