@@ -25,8 +25,6 @@ A `.evtq` file is one batch of events. The filename is the first 22 chars of bas
 ```bash
 export MYCLI_GA4_MEASUREMENT_ID=G-XXXXXXXXXX
 export MYCLI_GA4_API_SECRET=xxxxxxxxxxxxxxxxxxxxxx
-# optional: route to /debug/mp/collect for validation feedback
-export MYCLI_GA4_VALIDATE=1
 go run ./examples/mycli foo
 # the spawned send-metrics subprocess will deliver to GA4 and delete the file
 ```

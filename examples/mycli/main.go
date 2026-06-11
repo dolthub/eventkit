@@ -18,7 +18,6 @@ const (
 	sendMetricsCmd      = "send-metrics"
 	envGA4MeasurementID = "MYCLI_GA4_MEASUREMENT_ID"
 	envGA4APISecret     = "MYCLI_GA4_API_SECRET"
-	envGA4Validate      = "MYCLI_GA4_VALIDATE"
 	envDisable          = "MYCLI_DISABLE_METRICS"
 	envSkipSpawn        = "MYCLI_DISABLE_EVENT_FLUSH"
 )
@@ -199,7 +198,6 @@ func runSendMetrics(dataDir string, disabled bool) int {
 	ga, err := ga4tx.New(ga4tx.Config{
 		MeasurementID: mid,
 		APISecret:     secret,
-		Validate:      os.Getenv(envGA4Validate) == "1",
 	})
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "ga4: %v\n", err)
