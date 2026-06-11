@@ -190,15 +190,15 @@ func runSendMetrics(dataDir string, disabled bool) int {
 		return 0
 	}
 
-	mid := os.Getenv(envGA4MeasurementID)
-	if mid == "" {
+	endpoint := os.Getenv(envGA4Endpoint)
+	if endpoint == "" {
 		return 0
 	}
 
 	ga, err := ga4tx.New(ga4tx.Config{
-		MeasurementID: mid,
+		MeasurementID: os.Getenv(envGA4MeasurementID),
 		APISecret:     os.Getenv(envGA4APISecret),
-		Endpoint:      os.Getenv(envGA4Endpoint),
+		Endpoint:      endpoint,
 	})
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "ga4: %v\n", err)

@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -42,9 +41,6 @@ type Emitter struct {
 }
 
 func New(cfg Config) (*Emitter, error) {
-	if cfg.MeasurementID == "" {
-		return nil, errors.New("ga4: MeasurementID is required")
-	}
 	endpoint := cfg.Endpoint
 	if endpoint == "" {
 		if cfg.Validate {
@@ -90,9 +86,16 @@ func (e *Emitter) post(ctx context.Context, payload payload) error {
 	if err != nil {
 		return err
 	}
-	url := fmt.Sprintf("%s?measurement_id=%s", e.endpoint, e.mid)
+	url := e.endpoint
+	var params []string
+	if e.mid != "" {
+		params = append(params, "measurement_id="+e.mid)
+	}
 	if e.secret != "" {
-		url = fmt.Sprintf("%s&api_secret=%s", url, e.secret)
+		params = append(params, "api_secret="+e.secret)
+	}
+	if len(params) > 0 {
+		url = url + "?" + strings.Join(params, "&")
 	}
 	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
 	if err != nil {
