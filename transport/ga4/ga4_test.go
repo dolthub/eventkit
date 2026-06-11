@@ -98,10 +98,10 @@ func TestBuildPayloadSharedSessionID(t *testing.T) {
 
 func TestSanitizeName(t *testing.T) {
 	cases := map[string]string{
-		"command.clone":      "command_clone",
-		"":                   "event",
-		"123start":           "_123start",
-		"hello world!":       "hello_world_",
+		"command.clone": "command_clone",
+		"":              "event",
+		"123start":      "_123start",
+		"hello world!":  "hello_world_",
 	}
 	for in, want := range cases {
 		if got := sanitizeName(in); got != want {
@@ -152,7 +152,7 @@ func TestSendChunksAt25Events(t *testing.T) {
 	}
 }
 
-func TestSendRecordsFailuresOnHTTPError(t *testing.T) {
+func TestSendReturnsErrorOnHTTPFailure(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "boom", http.StatusInternalServerError)
 	}))
@@ -164,34 +164,10 @@ func TestSendRecordsFailuresOnHTTPError(t *testing.T) {
 	}
 	req := &eventkit.LogEventsRequest{
 		DistinctID: "c",
-		Events: []eventkit.EventRecord{
-			{ID: "a", Name: "ping"},
-			{ID: "b", Name: "ping"},
-		},
+		Events:     []eventkit.EventRecord{{ID: "a", Name: "ping"}},
 	}
-	if err := e.Send(context.Background(), req); err != nil {
-		t.Fatalf("Send returned err: %v", err)
-	}
-	failed, err := e.Drain(context.Background())
-	if err != nil {
-		t.Fatalf("Drain: %v", err)
-	}
-	if len(failed) != 2 || failed["a"] == nil || failed["b"] == nil {
-		t.Fatalf("failed = %v", failed)
-	}
-}
-
-func TestDrainClearsFailures(t *testing.T) {
-	e := &Emitter{failed: map[string]error{"x": http.ErrAbortHandler}}
-	failed, err := e.Drain(context.Background())
-	if err != nil {
-		t.Fatalf("Drain: %v", err)
-	}
-	if len(failed) != 1 {
-		t.Fatalf("failed = %v", failed)
-	}
-	if len(e.failed) != 0 {
-		t.Fatalf("not cleared: %v", e.failed)
+	if err := e.Send(context.Background(), req); err == nil {
+		t.Fatal("expected error from Send when server returns 500")
 	}
 }
 

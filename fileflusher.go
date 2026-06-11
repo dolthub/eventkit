@@ -9,10 +9,6 @@ import (
 	"github.com/dolthub/fslock"
 )
 
-type Drainable interface {
-	Drain(ctx context.Context) (map[string]error, error)
-}
-
 type FileFlusher struct {
 	dir          string
 	ext          string
@@ -76,13 +72,6 @@ func (f *FileFlusher) Flush(ctx context.Context) error {
 		return err
 	}
 
-	if drainable, ok := f.target.(Drainable); ok {
-		return f.flushDrainable(ctx, entries, drainable)
-	}
-	return f.flushSync(ctx, entries)
-}
-
-func (f *FileFlusher) flushSync(ctx context.Context, entries []os.DirEntry) error {
 	for _, entry := range entries {
 		if ctx.Err() != nil {
 			return ctx.Err()
@@ -106,57 +95,6 @@ func (f *FileFlusher) flushSync(ctx context.Context, entries []os.DirEntry) erro
 		}
 	}
 	return nil
-}
-
-func (f *FileFlusher) flushDrainable(ctx context.Context, entries []os.DirEntry, drainable Drainable) error {
-	pathByEventID := map[string]string{}
-	var paths []string
-
-	for _, entry := range entries {
-		if ctx.Err() != nil {
-			return ctx.Err()
-		}
-		if entry.IsDir() || filepath.Ext(entry.Name()) != f.ext {
-			continue
-		}
-		path := filepath.Join(f.dir, entry.Name())
-		req, ok, err := f.readBatch(path)
-		if err != nil {
-			return err
-		}
-		if !ok {
-			continue
-		}
-		if err := f.target.Send(ctx, req); err != nil {
-			return err
-		}
-		for _, evt := range req.Events {
-			pathByEventID[evt.ID] = path
-		}
-		paths = append(paths, path)
-	}
-
-	failed, drainErr := drainable.Drain(ctx)
-	if drainErr != nil {
-		return drainErr
-	}
-
-	failedPaths := map[string]struct{}{}
-	for eventID := range failed {
-		if p, ok := pathByEventID[eventID]; ok {
-			failedPaths[p] = struct{}{}
-		}
-	}
-
-	for _, path := range paths {
-		if _, bad := failedPaths[path]; bad {
-			continue
-		}
-		if err := os.Remove(path); err != nil {
-			return err
-		}
-	}
-	return drainErr
 }
 
 func (f *FileFlusher) readBatch(path string) (*LogEventsRequest, bool, error) {

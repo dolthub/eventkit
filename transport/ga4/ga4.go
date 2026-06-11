@@ -9,21 +9,20 @@ import (
 	"io"
 	"net/http"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/dolthub/eventkit"
 )
 
 const (
-	DefaultEndpoint        = "https://www.google-analytics.com/mp/collect"
+	DefaultEndpoint         = "https://www.google-analytics.com/mp/collect"
 	DefaultValidateEndpoint = "https://www.google-analytics.com/debug/mp/collect"
-	DefaultRequestTimeout  = 10 * time.Second
-	MaxEventsPerRequest    = 25
-	MaxParamsPerEvent      = 25
-	MaxEventNameLen        = 40
-	MaxParamNameLen        = 40
-	MaxParamValueLen       = 100
+	DefaultRequestTimeout   = 10 * time.Second
+	MaxEventsPerRequest     = 25
+	MaxParamsPerEvent       = 25
+	MaxEventNameLen         = 40
+	MaxParamNameLen         = 40
+	MaxParamValueLen        = 100
 )
 
 type Config struct {
@@ -40,9 +39,6 @@ type Emitter struct {
 	mid      string
 	secret   string
 	client   *http.Client
-
-	mu     sync.Mutex
-	failed map[string]error
 }
 
 func New(cfg Config) (*Emitter, error) {
@@ -73,7 +69,6 @@ func New(cfg Config) (*Emitter, error) {
 		mid:      cfg.MeasurementID,
 		secret:   cfg.APISecret,
 		client:   client,
-		failed:   make(map[string]error),
 	}, nil
 }
 
@@ -86,32 +81,11 @@ func (e *Emitter) Send(ctx context.Context, req *eventkit.LogEventsRequest) erro
 		if end > len(req.Events) {
 			end = len(req.Events)
 		}
-		chunk := req.Events[start:end]
-		payload := buildPayload(req, chunk)
-		if err := e.post(ctx, payload); err != nil {
-			for _, evt := range chunk {
-				e.recordFailure(evt.ID, err)
-			}
+		if err := e.post(ctx, buildPayload(req, req.Events[start:end])); err != nil {
+			return err
 		}
 	}
 	return nil
-}
-
-func (e *Emitter) Drain(ctx context.Context) (map[string]error, error) {
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	out := make(map[string]error, len(e.failed))
-	for k, v := range e.failed {
-		out[k] = v
-	}
-	e.failed = make(map[string]error)
-	return out, nil
-}
-
-func (e *Emitter) recordFailure(uuid string, err error) {
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	e.failed[uuid] = err
 }
 
 func (e *Emitter) post(ctx context.Context, payload payload) error {
@@ -138,10 +112,10 @@ func (e *Emitter) post(ctx context.Context, payload payload) error {
 }
 
 type payload struct {
-	ClientID       string  `json:"client_id"`
-	TimestampMicros int64  `json:"timestamp_micros,omitempty"`
-	UserProperties map[string]userProperty `json:"user_properties,omitempty"`
-	Events         []event `json:"events"`
+	ClientID        string                  `json:"client_id"`
+	TimestampMicros int64                   `json:"timestamp_micros,omitempty"`
+	UserProperties  map[string]userProperty `json:"user_properties,omitempty"`
+	Events          []event                 `json:"events"`
 }
 
 type userProperty struct {

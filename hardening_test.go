@@ -151,39 +151,3 @@ func TestFlusherValidMD5ButInvalidJSON(t *testing.T) {
 		t.Fatalf("invalid-JSON file should remain on disk: %v", err)
 	}
 }
-
-func TestDrainablePartialFailurePreservesOnlyFailedFiles(t *testing.T) {
-	dir := t.TempDir()
-	fe, err := NewFileEmitter(dir)
-	if err != nil {
-		t.Fatal(err)
-	}
-	allIDs := []string{}
-	for i := 0; i < 5; i++ {
-		req := sampleReq()
-		id := fmt.Sprintf("stress-%d", i)
-		req.Events[0].ID = id
-		if err := fe.Send(context.Background(), req); err != nil {
-			t.Fatal(err)
-		}
-		allIDs = append(allIDs, id)
-	}
-
-	target := &drainableEmitter{failed: map[string]error{
-		allIDs[1]: fmt.Errorf("fail-1"),
-		allIDs[3]: fmt.Errorf("fail-3"),
-	}}
-	if err := NewFileFlusher(dir, target).Flush(context.Background()); err != nil {
-		t.Fatal(err)
-	}
-
-	remaining := 0
-	for _, e := range mustReadDir(t, dir) {
-		if filepath.Ext(e.Name()) == DefaultFileExt {
-			remaining++
-		}
-	}
-	if remaining != 2 {
-		t.Fatalf("remaining files = %d, want 2", remaining)
-	}
-}
