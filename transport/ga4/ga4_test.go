@@ -171,11 +171,35 @@ func TestSendReturnsErrorOnHTTPFailure(t *testing.T) {
 	}
 }
 
-func TestNewRequiresCredentials(t *testing.T) {
+func TestNewRequiresMeasurementID(t *testing.T) {
 	if _, err := New(Config{APISecret: "s"}); err == nil {
 		t.Fatal("expected error when MeasurementID missing")
 	}
-	if _, err := New(Config{MeasurementID: "G-X"}); err == nil {
-		t.Fatal("expected error when APISecret missing")
+	if _, err := New(Config{MeasurementID: "G-X"}); err != nil {
+		t.Fatalf("APISecret should be optional: %v", err)
+	}
+}
+
+func TestSendOmitsAPISecretWhenEmpty(t *testing.T) {
+	var gotQuery string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotQuery = r.URL.RawQuery
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	defer srv.Close()
+
+	e, err := New(Config{MeasurementID: "G-X", Endpoint: srv.URL})
+	if err != nil {
+		t.Fatal(err)
+	}
+	req := &eventkit.LogEventsRequest{
+		DistinctID: "c",
+		Events:     []eventkit.EventRecord{{ID: "a", Name: "ping"}},
+	}
+	if err := e.Send(context.Background(), req); err != nil {
+		t.Fatal(err)
+	}
+	if gotQuery != "measurement_id=G-X" {
+		t.Fatalf("query = %q, want measurement_id=G-X (no api_secret)", gotQuery)
 	}
 }
