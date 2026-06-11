@@ -29,10 +29,16 @@ func TestBuildEventMapping(t *testing.T) {
 		},
 	}
 
-	e := buildEvent(r)
+	e := buildEvent(r, "sess-1")
 
 	if e.Name != "command_clone" {
 		t.Fatalf("name = %q, want command_clone", e.Name)
+	}
+	if e.Params["session_id"] != "sess-1" {
+		t.Fatalf("session_id = %v", e.Params["session_id"])
+	}
+	if v, ok := e.Params["engagement_time_msec"].(int64); !ok || v != 1 {
+		t.Fatalf("engagement_time_msec = %v", e.Params["engagement_time_msec"])
 	}
 	if e.Params["event_id"] != "evt-1" {
 		t.Fatalf("event_id = %v", e.Params["event_id"])
@@ -69,6 +75,24 @@ func TestBuildPayloadUserProperties(t *testing.T) {
 	}
 	if len(p.Events) != 1 || p.Events[0].Name != "ping" {
 		t.Fatalf("events = %+v", p.Events)
+	}
+	if _, ok := p.Events[0].Params["session_id"]; !ok {
+		t.Fatalf("session_id missing: %+v", p.Events[0].Params)
+	}
+	if v, ok := p.Events[0].Params["engagement_time_msec"].(int64); !ok || v != 1 {
+		t.Fatalf("engagement_time_msec = %v", p.Events[0].Params["engagement_time_msec"])
+	}
+}
+
+func TestBuildPayloadSharedSessionID(t *testing.T) {
+	req := &eventkit.LogEventsRequest{DistinctID: "c"}
+	p := buildPayload(req, []eventkit.EventRecord{
+		{ID: "a", Name: "ping"},
+		{ID: "b", Name: "pong"},
+	})
+	if p.Events[0].Params["session_id"] != p.Events[1].Params["session_id"] {
+		t.Fatalf("session_id should be shared across batch: %v vs %v",
+			p.Events[0].Params["session_id"], p.Events[1].Params["session_id"])
 	}
 }
 

@@ -170,15 +170,18 @@ func buildPayload(req *eventkit.LogEventsRequest, records []eventkit.EventRecord
 			p.UserProperties["platform"] = userProperty{Value: truncate(req.Platform, MaxParamValueLen)}
 		}
 	}
+	sessionID := fmt.Sprintf("%d", time.Now().Unix())
 	p.Events = make([]event, 0, len(records))
 	for _, r := range records {
-		p.Events = append(p.Events, buildEvent(r))
+		p.Events = append(p.Events, buildEvent(r, sessionID))
 	}
 	return p
 }
 
-func buildEvent(r eventkit.EventRecord) event {
+func buildEvent(r eventkit.EventRecord, sessionID string) event {
 	params := make(map[string]interface{})
+	params["session_id"] = sessionID
+	params["engagement_time_msec"] = int64(1)
 	params["event_id"] = r.ID
 	if !r.EndTime.IsZero() && !r.StartTime.IsZero() {
 		params["duration_ms"] = float64(r.EndTime.Sub(r.StartTime).Nanoseconds()) / 1e6
