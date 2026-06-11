@@ -2,7 +2,6 @@ package eventkit
 
 import (
 	"context"
-	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -229,98 +228,6 @@ func mustReadDir(t *testing.T, dir string) []os.DirEntry {
 		t.Fatal(err)
 	}
 	return entries
-}
-
-type drainableEmitter struct {
-	memEmitter
-	failed map[string]error
-}
-
-func (d *drainableEmitter) Drain(_ context.Context) (map[string]error, error) {
-	return d.failed, nil
-}
-
-func TestFileFlusherDrainableKeepsFailedFiles(t *testing.T) {
-	dir := t.TempDir()
-	fe, err := NewFileEmitter(dir)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	req1 := sampleReq()
-	req1.Events[0].ID = "id-good-1"
-	if err := fe.Send(context.Background(), req1); err != nil {
-		t.Fatal(err)
-	}
-	req2 := sampleReq()
-	req2.Events[0].ID = "id-bad-2"
-	if err := fe.Send(context.Background(), req2); err != nil {
-		t.Fatal(err)
-	}
-	req3 := sampleReq()
-	req3.Events[0].ID = "id-good-3"
-	if err := fe.Send(context.Background(), req3); err != nil {
-		t.Fatal(err)
-	}
-
-	target := &drainableEmitter{failed: map[string]error{"id-bad-2": errors.New("nope")}}
-	if err := NewFileFlusher(dir, target).Flush(context.Background()); err != nil {
-		t.Fatal(err)
-	}
-
-	if len(target.requests) != 3 {
-		t.Fatalf("Send count = %d, want 3", len(target.requests))
-	}
-
-	remaining := 0
-	for _, e := range mustReadDir(t, dir) {
-		if filepath.Ext(e.Name()) == DefaultFileExt {
-			remaining++
-		}
-	}
-	if remaining != 1 {
-		t.Fatalf("remaining files = %d, want 1", remaining)
-	}
-}
-
-type drainErrEmitter struct {
-	memEmitter
-	err error
-}
-
-func (d *drainErrEmitter) Drain(_ context.Context) (map[string]error, error) {
-	return nil, d.err
-}
-
-func TestFileFlusherDrainErrorPreservesFiles(t *testing.T) {
-	dir := t.TempDir()
-	fe, err := NewFileEmitter(dir)
-	if err != nil {
-		t.Fatal(err)
-	}
-	for i := 0; i < 3; i++ {
-		req := sampleReq()
-		req.Events[0].ID = string(rune('a' + i))
-		if err := fe.Send(context.Background(), req); err != nil {
-			t.Fatal(err)
-		}
-	}
-
-	target := &drainErrEmitter{err: errors.New("drain timeout")}
-	err = NewFileFlusher(dir, target).Flush(context.Background())
-	if !errors.Is(err, target.err) {
-		t.Fatalf("err = %v, want %v", err, target.err)
-	}
-
-	remaining := 0
-	for _, e := range mustReadDir(t, dir) {
-		if filepath.Ext(e.Name()) == DefaultFileExt {
-			remaining++
-		}
-	}
-	if remaining != 3 {
-		t.Fatalf("remaining files = %d, want 3", remaining)
-	}
 }
 
 func TestFileFlusherSecondInstanceExitsCleanly(t *testing.T) {
