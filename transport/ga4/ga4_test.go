@@ -171,16 +171,13 @@ func TestSendReturnsErrorOnHTTPFailure(t *testing.T) {
 	}
 }
 
-func TestNewRequiresMeasurementID(t *testing.T) {
-	if _, err := New(Config{APISecret: "s"}); err == nil {
-		t.Fatal("expected error when MeasurementID missing")
-	}
-	if _, err := New(Config{MeasurementID: "G-X"}); err != nil {
-		t.Fatalf("APISecret should be optional: %v", err)
+func TestNewAcceptsEmptyCredentials(t *testing.T) {
+	if _, err := New(Config{Endpoint: "http://example"}); err != nil {
+		t.Fatalf("MeasurementID and APISecret should be optional: %v", err)
 	}
 }
 
-func TestSendOmitsAPISecretWhenEmpty(t *testing.T) {
+func TestSendOmitsCredentialsWhenEmpty(t *testing.T) {
 	var gotQuery string
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		gotQuery = r.URL.RawQuery
@@ -188,7 +185,7 @@ func TestSendOmitsAPISecretWhenEmpty(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	e, err := New(Config{MeasurementID: "G-X", Endpoint: srv.URL})
+	e, err := New(Config{Endpoint: srv.URL})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -199,7 +196,7 @@ func TestSendOmitsAPISecretWhenEmpty(t *testing.T) {
 	if err := e.Send(context.Background(), req); err != nil {
 		t.Fatal(err)
 	}
-	if gotQuery != "measurement_id=G-X" {
-		t.Fatalf("query = %q, want measurement_id=G-X (no api_secret)", gotQuery)
+	if gotQuery != "" {
+		t.Fatalf("query = %q, want empty (no measurement_id or api_secret)", gotQuery)
 	}
 }
